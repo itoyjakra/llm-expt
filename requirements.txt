@@ -2,3 +2,7 @@ openai
 langchain
 huggingface_hub
 ipykernel
+git+https://github.com/huggingface/peft.git
+bitsandbytes
+datasets
+trl
