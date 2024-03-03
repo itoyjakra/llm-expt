@@ -6,3 +6,7 @@ git+https://github.com/huggingface/peft.git
 bitsandbytes
 datasets
 trl
+playwright
+html2text
+sentence-transformers
+faiss-gpu
