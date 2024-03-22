@@ -1,0 +1,15 @@
+kb_bucket: "llm-papers-from-arxiv"
+kb_name: "llm-papers-from-arxiv"
+kb_description: "LLM papers from arXiv starting from 2024"
+vector_store:
+  type: OPENSEARCH_SERVERLESS
+  name: "llm-papers-from-arxiv"
+vector_index:
+  name: "llm-papers-from-arxiv"
+chunking_strategy:
+  type: FIXED_SIZE
+  max_tokens: 512
+  overlap_percentage: 20
+embed_model:
+  name: "cohere.embed-english-v3"
+  category: "foundation-model"
