@@ -24,6 +24,8 @@ aoss_client = boto3_session.client("opensearchserverless")
 
 def create_knowledge_base(**kwargs):
     """Create a Bedrock knowledge base."""
+    logger.info("Creating knowledge base...")
+
     create_kb_response = bedrock_client.create_knowledge_base(
         name=kwargs["kb_name"],
         description=kwargs["kb_desc"],
@@ -53,7 +55,37 @@ def create_kb_bucket(bucket_name: str) -> None:
         logger.debug(response)
 
 
+def get_json_body():
+    return {
+        "settings": {
+            "index.knn": "true",
+            "number_of_shards": 1,
+            "knn.algo_param.ef_search": 512,
+            "number_of_replicas": 0,
+        },
+        "mappings": {
+            "properties": {
+                "vector": {
+                    "type": "knn_vector",
+                    "dimension": 1536,
+                    "method": {
+                        "name": "hnsw",
+                        "engine": "nmslib",
+                        "space_type": "cosinesimil",
+                        "parameters": {"ef_construction": 512, "m": 16},
+                    },
+                },
+                "text": {"type": "text"},
+                "text-metadata": {"type": "text"},
+            }
+        },
+    }
+
+
 def get_opensearch_client():
+    service = "aoss"
+    credentials = boto3.Session().get_credentials()
+    awsauth = auth = AWSV4SignerAuth(credentials, region, service)
     return OpenSearch(
         hosts=[{"host": host, "port": 443}],
         http_auth=awsauth,
@@ -64,7 +96,7 @@ def get_opensearch_client():
     )
 
 
-def create_opensearch_index(oss_client):
+def create_opensearch_index(oss_client, body_json, index_name):
     # Create index
     logger.info("Creating index...")
     response = oss_client.indices.create(index=index_name, body=json.dumps(body_json))
@@ -121,6 +153,25 @@ if __name__ == "__main__":
         name=vector_store_name, type="VECTORSEARCH"
     )
     logger.debug(type(collection))
+    collection_id = collection["createCollectionDetail"]["id"]
+    host = collection_id + "." + region + ".aoss.amazonaws.com"
+    logger.debug(f"{host=}")
+
+    # wait for collection creation
+    response = aoss_client.batch_get_collection(names=[vector_store_name])
+    # Periodically check collection status
+    while (response["collectionDetails"][0]["status"]) == "CREATING":
+        logger.debug("Creating collection...")
+        time.sleep(30)
+        response = aoss_client.batch_get_collection(names=[vector_store_name])
+    logger.debug("\nCollection successfully created:")
+    logger.debug(response["collectionDetails"])
+
+    # create oss policy and attach it to Bedrock execution role
+    response = create_oss_policy_attach_bedrock_execution_role(
+        collection_id=collection_id, bedrock_kb_execution_role=bedrock_kb_execution_role
+    )
+    logger.debug(response)
 
     # create opensearch configuration
     oss_config = get_oss_config(
