@@ -8,6 +8,7 @@ import botocore
 import yaml
 from loguru import logger
 from opensearchpy import AWSV4SignerAuth, OpenSearch, RequestsHttpConnection
+from retrying import retry
 
 from utility import (
     create_bedrock_execution_role,
@@ -22,9 +23,14 @@ boto3_session = boto3.session.Session()
 aoss_client = boto3_session.client("opensearchserverless")
 
 
+@retry(wait_random_min=1000, wait_random_max=2000, stop_max_attempt_number=7)
 def create_knowledge_base(**kwargs):
     """Create a Bedrock knowledge base."""
     logger.info("Creating knowledge base...")
+    logger.debug("embedding model Arn---")
+    logger.info(kwargs["embed_model_arn"])
+    logger.debug("oss config---")
+    logger.info(kwargs["oss_config"])
 
     create_kb_response = bedrock_client.create_knowledge_base(
         name=kwargs["kb_name"],
@@ -83,6 +89,7 @@ def get_json_body():
 
 
 def get_opensearch_client():
+    logger.info("Creating OpenSearch client...")
     service = "aoss"
     credentials = boto3.Session().get_credentials()
     awsauth = auth = AWSV4SignerAuth(credentials, region, service)
@@ -98,7 +105,7 @@ def get_opensearch_client():
 
 def create_opensearch_index(oss_client, body_json, index_name):
     # Create index
-    logger.info("Creating index...")
+    logger.info("Creating opensearch index...")
     response = oss_client.indices.create(index=index_name, body=json.dumps(body_json))
     logger.info(response)
     time.sleep(60)  # index creation can take up to a minute
@@ -139,20 +146,33 @@ if __name__ == "__main__":
     # create the collection
     vector_store_name = infra_config["vector_store"]["name"]
 
+    suffix = infra_config["project_suffix"]
     bedrock_kb_execution_role = create_bedrock_execution_role(
-        bucket_name=infra_config["kb_bucket"]
+        bucket_name=infra_config["kb_bucket"],
+        fm_policy_name=f"AmazonBedrockFoundationModelPolicyForKnowledgeBase_{suffix}",
+        s3_policy_name=f"AmazonBedrockS3PolicyForKnowledgeBase_{suffix}",
+        bedrock_execution_role_name=f"AmazonBedrockExecutionRoleForKnowledgeBase_{suffix}",
     )
     bedrock_kb_execution_role_arn = bedrock_kb_execution_role["Role"]["Arn"]
 
+    project_name = infra_config["project_name"]
     encryption_policy, network_policy, access_policy = create_policies_in_oss(
         vector_store_name=vector_store_name,
         aoss_client=aoss_client,
         bedrock_kb_execution_role_arn=bedrock_kb_execution_role_arn,
+        encryption_policy_name=f"{project_name}-enc-{suffix}",
+        network_policy_name=f"{project_name}-net-{suffix}",
+        access_policy_name=f"{project_name}-acc-{suffix}",
     )
-    collection = aoss_client.create_collection(
-        name=vector_store_name, type="VECTORSEARCH"
-    )
-    logger.debug(type(collection))
+
+    # TODO handle existing collectipn properly
+    try:
+        collection = aoss_client.create_collection(
+            name=vector_store_name, type="VECTORSEARCH"
+        )
+    except aoss_client.exceptions.ConflictException:
+        logger.debug("Collection already exists, skipping ...")
+
     collection_id = collection["createCollectionDetail"]["id"]
     host = collection_id + "." + region + ".aoss.amazonaws.com"
     logger.debug(f"{host=}")
@@ -169,9 +189,18 @@ if __name__ == "__main__":
 
     # create oss policy and attach it to Bedrock execution role
     response = create_oss_policy_attach_bedrock_execution_role(
-        collection_id=collection_id, bedrock_kb_execution_role=bedrock_kb_execution_role
+        collection_id=collection_id,
+        bedrock_kb_execution_role=bedrock_kb_execution_role,
+        oss_policy_name=f"AmazonBedrockOSSPolicyForKnowledgeBase_{suffix}",
     )
     logger.debug(response)
+
+    # create opensearch index
+    create_opensearch_index(
+        oss_client=get_opensearch_client(),
+        body_json=get_json_body(),
+        index_name=infra_config["vector_index"]["name"],
+    )
 
     # create opensearch configuration
     oss_config = get_oss_config(

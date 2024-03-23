@@ -1,3 +1,5 @@
+project_name: "rag-with-llm-research"
+project_suffix: "01"
 kb_bucket: "llm-papers-from-arxiv"
 kb_name: "llm-papers-from-arxiv"
 kb_description: "LLM papers from arXiv starting from 2024"
