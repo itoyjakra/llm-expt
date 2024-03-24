@@ -8,6 +8,7 @@ import botocore
 import yaml
 from loguru import logger
 from opensearchpy import AWSV4SignerAuth, OpenSearch, RequestsHttpConnection
+from opensearchpy.exceptions import AuthenticationException
 from retrying import retry
 
 from utility import (
@@ -20,6 +21,7 @@ region = "us-east-1"
 s3_client = boto3.client("s3")
 bedrock_client = boto3.client("bedrock-agent")
 boto3_session = boto3.session.Session()
+bedrock_agent_client = boto3_session.client("bedrock-agent", region_name=region)
 aoss_client = boto3_session.client("opensearchserverless")
 
 
@@ -92,7 +94,10 @@ def get_opensearch_client():
     logger.info("Creating OpenSearch client...")
     service = "aoss"
     credentials = boto3.Session().get_credentials()
+    logger.debug(credentials)
     awsauth = auth = AWSV4SignerAuth(credentials, region, service)
+    logger.debug(awsauth)
+
     return OpenSearch(
         hosts=[{"host": host, "port": 443}],
         http_auth=awsauth,
@@ -103,12 +108,19 @@ def get_opensearch_client():
     )
 
 
+# @retry(wait_random_min=1000, wait_random_max=2000, stop_max_attempt_number=7)
+@retry(
+    retry_on_exception=(AuthenticationException,),
+    stop_max_attempt_number=5,
+    wait_fixed=60000,
+)
 def create_opensearch_index(oss_client, body_json, index_name):
     # Create index
     logger.info("Creating opensearch index...")
     response = oss_client.indices.create(index=index_name, body=json.dumps(body_json))
     logger.info(response)
     time.sleep(60)  # index creation can take up to a minute
+    return response
 
 
 def get_oss_config(vector_index: str, collection) -> dict:
@@ -196,11 +208,12 @@ if __name__ == "__main__":
     logger.debug(response)
 
     # create opensearch index
-    create_opensearch_index(
+    oss_response = create_opensearch_index(
         oss_client=get_opensearch_client(),
         body_json=get_json_body(),
         index_name=infra_config["vector_index"]["name"],
     )
+    logger.debug(oss_response)
 
     # create opensearch configuration
     oss_config = get_oss_config(
@@ -214,17 +227,50 @@ if __name__ == "__main__":
         overlap_percentage=infra_config["chunking_strategy"]["overlap_percentage"],
     )
 
+    # create S3 configuration
+    s3_config = {
+        "bucketArn": f"arn:aws:s3:::{infra_config['kb_bucket']}",
+    }
+
     # create the knowledge base
     embed_model = infra_config["embed_model"]["name"]
     embed_model_categoty = infra_config["embed_model"]["category"]
     embed_model_arn = f"arn:aws:bedrock:{region}::{embed_model_categoty}/{embed_model}"
 
-    response = create_knowledge_base(
+    kb_response = create_knowledge_base(
         kb_name=infra_config["kb_name"],
         kb_desc=infra_config["kb_description"],
         role_arn=bedrock_kb_execution_role_arn,
         embed_model_arn=embed_model_arn,
         oss_config=oss_config,
     )
+    logger.debug(kb_response)
+    kb_id = kb_response["knowledgeBaseId"]
 
-    logger.debug(response)
+    # create data source for KB
+    logger.info("Creating data source...")
+    create_ds_response = bedrock_agent_client.create_data_source(
+        name=infra_config["kb_name"],
+        description=infra_config["kb_description"],
+        knowledgeBaseId=kb_id,
+        dataSourceConfiguration={"type": "S3", "s3Configuration": s3_config},
+        vectorIngestionConfiguration={"chunkingConfiguration": chunk_config},
+    )
+    ds_response = create_ds_response["dataSource"]
+    logger.info(ds_response)
+    ds_id = dataSourceId = ds_response["dataSourceId"]
+
+    # Start an ingestion job
+    start_job_response = bedrock_agent_client.start_ingestion_job(
+        knowledgeBaseId=kb_id, dataSourceId=ds_id
+    )
+    job = start_job_response["ingestionJob"]
+    while job["status"] != "COMPLETE":
+        get_job_response = bedrock_agent_client.get_ingestion_job(
+            knowledgeBaseId=kb_id,
+            dataSourceId=ds_id,
+            ingestionJobId=job["ingestionJobId"],
+        )
+        job = get_job_response["ingestionJob"]
+    logger.info(job)
+    time.sleep(60)

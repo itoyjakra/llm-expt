@@ -1,5 +1,5 @@
 project_name: "rag-with-llm-research"
-project_suffix: "01"
+project_suffix: "06"
 kb_bucket: "llm-papers-from-arxiv"
 kb_name: "llm-papers-from-arxiv"
 kb_description: "LLM papers from arXiv starting from 2024"
@@ -13,5 +13,5 @@ chunking_strategy:
   max_tokens: 512
   overlap_percentage: 20
 embed_model:
-  name: "cohere.embed-english-v3"
+  name: "amazon.titan-embed-text-v1"
   category: "foundation-model"

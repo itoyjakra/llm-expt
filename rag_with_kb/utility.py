@@ -80,10 +80,10 @@ def create_bedrock_execution_role(
         )
     except iam_client.exceptions.EntityAlreadyExistsException as e:
         logger.error(f"Foundation model policy already exists: {e}")
-        fm_policy = iam_client.get_policy(
-            PolicyArn=f"arn:aws:iam::{account_number}:policy/{fm_policy_name}"
-        )
-        logger.debug(f"Foundation model policy: {fm_policy}")
+        # fm_policy = iam_client.get_policy(
+        #     PolicyArn=f"arn:aws:iam::{account_number}:policy/{fm_policy_name}"
+        # )
+        # logger.debug(f"Foundation model policy: {fm_policy}")
 
     try:
         s3_policy = iam_client.create_policy(
@@ -93,10 +93,10 @@ def create_bedrock_execution_role(
         )
     except iam_client.exceptions.EntityAlreadyExistsException as e:
         logger.error(f"S3 policy already exists: {e}")
-        s3_policy = iam_client.get_policy(
-            PolicyArn=f"arn:aws:iam::{account_number}:policy/{s3_policy_name}"
-        )
-        logger.debug(f"S3 policy: {s3_policy}")
+        # s3_policy = iam_client.get_policy(
+        #     PolicyArn=f"arn:aws:iam::{account_number}:policy/{s3_policy_name}"
+        # )
+        # logger.debug(f"S3 policy: {s3_policy}")
 
     # create bedrock execution role
     try:
@@ -108,10 +108,10 @@ def create_bedrock_execution_role(
         )
     except iam_client.exceptions.EntityAlreadyExistsException as e:
         logger.error(f"Bedrock execution role already exists: {e}")
-        bedrock_kb_execution_role = iam_client.get_role(
-            RoleName=bedrock_execution_role_name
-        )
-        logger.debug(f"Bedrock execution role: {bedrock_kb_execution_role}")
+        # bedrock_kb_execution_role = iam_client.get_role(
+        #     RoleName=bedrock_execution_role_name
+        # )
+        # logger.debug(f"Bedrock execution role: {bedrock_kb_execution_role}")
 
     # fetch arn of the policies and role created above
     bedrock_kb_execution_role_arn = bedrock_kb_execution_role["Role"]["Arn"]
@@ -153,10 +153,10 @@ def create_oss_policy_attach_bedrock_execution_role(
         )
     except iam_client.exceptions.EntityAlreadyExistsException as e:
         logger.error(f"OSS policy already exists: {e}")
-        oss_policy = iam_client.get_policy(
-            PolicyArn=f"arn:aws:iam::{account_number}:policy/{oss_policy_name}"
-        )
-        logger.debug(f"OSS policy: {oss_policy}")
+        # oss_policy = iam_client.get_policy(
+        #     PolicyArn=f"arn:aws:iam::{account_number}:policy/{oss_policy_name}"
+        # )
+        # logger.debug(f"OSS policy: {oss_policy}")
 
     oss_policy_arn = oss_policy["Policy"]["Arn"]
     logger.debug("Opensearch serverless arn: ", oss_policy_arn)
@@ -193,10 +193,10 @@ def create_policies_in_oss(
         )
     except aoss_client.exceptions.ConflictException as e:
         logger.error(f"Encryption policy already exists: {e}")
-        encryption_policy = aoss_client.get_security_policy(
-            name=encryption_policy_name, type="encryption"
-        )
-        logger.debug(f"Encryption policy: {encryption_policy}")
+        # encryption_policy = aoss_client.get_security_policy(
+        #     name=encryption_policy_name, type="encryption"
+        # )
+        # logger.debug(f"Encryption policy: {encryption_policy}")
 
     try:
         network_policy = aoss_client.create_security_policy(
@@ -218,10 +218,10 @@ def create_policies_in_oss(
         )
     except aoss_client.exceptions.ConflictException as e:
         logger.error(f"Network policy already exists: {e}")
-        network_policy = aoss_client.get_security_policy(
-            name=network_policy_name, type="network"
-        )
-        logger.debug(f"Network policy: {network_policy}")
+        # network_policy = aoss_client.get_security_policy(
+        #     name=network_policy_name, type="network"
+        # )
+        # logger.debug(f"Network policy: {network_policy}")
 
     try:
         access_policy = aoss_client.create_access_policy(
@@ -262,10 +262,10 @@ def create_policies_in_oss(
         )
     except aoss_client.exceptions.ConflictException as e:
         logger.error(f"Access policy already exists: {e}")
-        access_policy = aoss_client.get_access_policy(
-            name=access_policy_name, type="data"
-        )
-        logger.debug(f"Access policy: {access_policy}")
+        # access_policy = aoss_client.get_access_policy(
+        #     name=access_policy_name, type="data"
+        # )
+        # logger.debug(f"Access policy: {access_policy}")
 
     return encryption_policy, network_policy, access_policy
 
