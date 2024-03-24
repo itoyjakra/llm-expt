@@ -179,7 +179,9 @@ class ArxivDownloader:
             # Prepare the item to be inserted
             item = {
                 "Title": row["Title"],
-                "Published": row["Date"],
+                "Published": row["Date"].strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                ),  # Convert timestamp to ISO 8601 format
                 "EntryId": row["Id"],
                 "Summary": row["Summary"],
                 "URL": row["URL"],
@@ -191,9 +193,9 @@ class ArxivDownloader:
             if "Item" not in response:
                 # The paper is new, so add it to the table
                 table.put_item(Item=item)
-                print(f"Added new paper: {item['Title']}")
+                logger.info(f"Added new paper: {item['Title']}")
             else:
-                print(f"Paper already exists: {item['Title']}")
+                logger.info(f"Paper already exists: {item['Title']}")
 
 
 if __name__ == "__main__":
