@@ -1,6 +1,8 @@
+# parameters used in initial setup of Bedrock knowledge base
 project_name: "rag-with-llm-research"
 project_suffix: "06"
-kb_bucket: "llm-papers-from-arxiv"
+master_collection_dynamodb: "arxiv_papers_master_collection"
+kb_bucket: "llm-papers-from-arxiv" # pdf of arxiv papers
 kb_name: "llm-papers-from-arxiv"
 kb_description: "LLM papers from arXiv starting from 2024"
 vector_store:

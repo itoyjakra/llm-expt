@@ -1,0 +1,5 @@
+.terraform*
+data/
+__pycache__/
+*.backup
+*.bak
