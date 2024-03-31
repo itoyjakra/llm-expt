@@ -35,11 +35,12 @@ data "archive_file" "refresh_kb_zip" {
   output_path = "${path.module}/lambda_functions/refresh_kb_lambda_function_payload.zip"
 }
 
+
 resource "aws_lambda_function" "download_pdfs_to_s3_lambda" {
   filename      = data.archive_file.ddb_to_s3_lambda_zip.output_path
   function_name = "download_pdf_to_s3"
   handler       = "dynamodb_to_s3.lambda_handler"
-  runtime       = "python3.12"
+  runtime       = var.runtime
   role          = aws_iam_role.lambda_exec.arn
 
   source_code_hash = filebase64sha256(data.archive_file.ddb_to_s3_lambda_zip.output_path)
@@ -50,15 +51,61 @@ resource "aws_lambda_function" "download_pdfs_to_s3_lambda" {
       DB_NAME   = data.external.read_params.result["ddb_id"]
     }
   }
-  timeout = 900 # Timeout in seconds
+  timeout = var.lambda_timeout
 }
 
+resource "null_resource" "install_python_dependencies" {
+  provisioner "local-exec" {
+    command = "bash ${path.module}/scripts/create_lambda_archive.sh"
+
+    environment = {
+      source_code_path = var.path_source_code
+      function_name    = var.lambda_scraper_function_name
+      path_module      = path.module
+      runtime          = var.runtime
+      path_cwd         = path.cwd
+    }
+  }
+}
+
+data "archive_file" "create_dist_pkg" {
+  depends_on  = [null_resource.install_python_dependencies]
+  source_dir  = "${path.cwd}/lambda_dist_pkg/"
+  output_path = "${path.module}/scraper_lambda_function_payload.zip"
+  type        = "zip"
+}
+
+# resource "aws_lambda_function" "paper_scraper_lambda" {
+#   function_name = var.lambda_scraper_function_name
+#   description   = "Scrapes arxiv papers between two dates"
+#   handler       = "lambda_handler"
+#   runtime       = var.runtime
+#   role          = aws_iam_role.lambda_exec.arn
+#   timeout       = var.lambda_timeout
+
+#   depends_on       = [null_resource.install_python_dependencies]
+#   source_code_hash = data.archive_file.create_dist_pkg.output_base64sha256
+#   filename         = data.archive_file.create_dist_pkg.output_path
+# }
+
+resource "aws_lambda_function" "paper_scraper_lambda" {
+  function_name = var.lambda_scraper_function_name
+  description   = "Scrapes arxiv papers between two dates"
+  handler       = "daily_scraper.lambda_handler"
+  runtime       = var.runtime
+  role          = aws_iam_role.lambda_exec.arn
+  timeout       = var.lambda_timeout
+
+  filename         = "my_custom_lambda/function.zip"
+  source_code_hash = filebase64sha256("my_custom_lambda/function.zip")
+
+}
 #TODO need to attach the correct set of policies
 resource "aws_lambda_function" "refresh_knowledge_base_lambda" {
   filename      = data.archive_file.refresh_kb_zip.output_path
   function_name = "refresh_knowledge_base"
   handler       = "refresh_knowledge_base.lambda_handler"
-  runtime       = "python3.12"
+  runtime       = var.runtime
   role          = aws_iam_role.lambda_exec.arn
 
   source_code_hash = filebase64sha256(data.archive_file.refresh_kb_zip.output_path)
@@ -69,37 +116,52 @@ resource "aws_lambda_function" "refresh_knowledge_base_lambda" {
       DS_ID = data.external.read_params.result["ds_id"]
     }
   }
-  timeout = 900 # Timeout in seconds
+  timeout = var.lambda_timeout
 }
 
-resource "aws_iam_role" "lambda_exec" {
-  name = "lambda_exec_role"
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "lambda.amazonaws.com"
+
+resource "aws_sfn_state_machine" "arxiv_paper_workflow" {
+  name     = "ArxivPaperWorkflow"
+  role_arn = aws_iam_role.step_function_execution_role.arn
+
+  definition = jsonencode({
+    Comment = "A state machine that runs the paper scraping, PDF downloading, and knowledge base refreshing workflow."
+    StartAt = "PaperScraper"
+    States = {
+      PaperScraper = {
+        Type     = "Task"
+        Resource = aws_lambda_function.paper_scraper_lambda.arn
+        Next     = "DownloadPDFsToS3"
+        Parameters = {
+          "topic"       = var.topic
+          "db_name"     = var.db_name
+          "max_results" = var.max_results
         }
-      },
-    ]
+      }
+      DownloadPDFsToS3 = {
+        Type     = "Task"
+        Resource = aws_lambda_function.download_pdfs_to_s3_lambda.arn
+        Next     = "RefreshKnowledgeBase"
+      }
+      RefreshKnowledgeBase = {
+        Type     = "Task"
+        Resource = aws_lambda_function.refresh_knowledge_base_lambda.arn
+        End      = true
+      }
+    }
   })
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_exec_policy" {
-  role       = aws_iam_role.lambda_exec.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+
+resource "aws_cloudwatch_event_rule" "daily_execution_rule" {
+  name                = "DailyArxivPaperScraper"
+  schedule_expression = "cron(0 2 * * ? *)"
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_dynamodb_policy" {
-  role       = aws_iam_role.lambda_exec.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
-}
-
-resource "aws_iam_role_policy_attachment" "lambda_s3_policy" {
-  role       = aws_iam_role.lambda_exec.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+resource "aws_cloudwatch_event_target" "step_function_target" {
+  rule      = aws_cloudwatch_event_rule.daily_execution_rule.name
+  target_id = "StepFunctionTarget"
+  arn       = aws_sfn_state_machine.arxiv_paper_workflow.arn
+  role_arn  = aws_iam_role.step_function_execution_role.arn
 }
