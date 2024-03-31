@@ -1,11 +1,10 @@
-"""Class definition if ArxivDownloader
+"""Class definition of ArxivDownloader
 -- search for a topic in arxiv 
 -- download and papers
 """
 
-import imp
-import os
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from typing import Optional
 
 import arxiv
 import boto3
@@ -13,12 +12,26 @@ import pandas as pd
 from loguru import logger
 from pytz import timezone
 
-from read_yaml import read_yaml_file
-
 dynamodb = boto3.resource("dynamodb")
 
 
+@dataclass
+class TestPaperDownloadArgs:
+    """Holds constructor arguments for ArxivDownloader class"""
+
+    topic: str
+    start_date: str
+    end_date: str
+    dynamodb_table: str
+    max_results: int
+
+
 class ArxivDownloader:
+    """Downloads arxiv papers on a topic
+    for a given date range
+    and stores them in a dynamodb table
+    """
+
     def __init__(
         self,
         topic: str,
@@ -28,7 +41,7 @@ class ArxivDownloader:
         max_results: int = 10_000,
     ):
         self.client = arxiv.Client()
-        self.topic = topic
+        self.topic = topic.lower().replace(" ", "_")
         self.db_name = db_name
         self.max_results = max_results
         self.start_date = pd.to_datetime(start_date).replace(tzinfo=timezone("UTC"))
@@ -42,17 +55,20 @@ class ArxivDownloader:
         """Set the end date for the download."""
         self.end_date = pd.to_datetime(end_date).replace(tzinfo=timezone("UTC"))
 
-    def search_arxiv(self) -> arxiv.Search:
-        """Search arxiv for a topic"""
+    def query_arxiv_for_topic(self) -> arxiv.Search:
+        """Searches arxiv for a topic"""
         return arxiv.Search(
             query=self.topic,
             max_results=self.max_results,
             sort_by=arxiv.SortCriterion.SubmittedDate,
         )
 
-    def download_papers_by_date(self) -> pd.DataFrame:
-        """Download papers from arxiv by date range"""
-        search_results = self.search_arxiv()
+    def download_paper_metadata_by_date(self) -> pd.DataFrame:
+        """Download paper metadata and save to a dataframe"""
+        search_results = self.query_arxiv_for_topic()
+
+        logger.info(f"start date for download: {self.start_date}")
+        logger.info(f"end date for download: {self.end_date}")
 
         all_data = []
         for result in self.client.results(search_results):
@@ -79,7 +95,7 @@ class ArxivDownloader:
 
     def test_download(self):
         """Download papers from the last 10 days"""
-        df_papers = self.download_papers_by_date()
+        df_papers = self.download_paper_metadata_by_date()
 
         logger.info(df_papers.info())
         logger.info(df_papers.head())
@@ -93,37 +109,34 @@ class ArxivDownloader:
         df_papers.to_csv(f"{target_location}", index=False)
         logger.info(f"Saved papers to {target_location}")
 
-    def bulk_download(self) -> pd.DataFrame:
-        """Initial download of all 2024 papers."""
-        topic = self.topic.lower().replace(" ", "_")
-        start_date = self.start_date.strftime("%Y-%m-%d")
-        end_date = self.end_date.strftime("%Y-%m-%d")
-        target_location = f"data/{topic}_papers_{start_date}_{end_date}.csv"
+    # def download_paper_metadata(self) -> pd.DataFrame:
+    #     """Download paper metadata and save to a dataframe"""
+    #     start_date = self.start_date.strftime("%Y-%m-%d")
+    #     end_date = self.end_date.strftime("%Y-%m-%d")
+    #     target_location = f"data/{topic}_papers_{start_date}_{end_date}.csv"
 
-        logger.info(f"Downloading papers from {self.start_date} to {self.end_date}")
-        df_papers = self.download_papers_by_date()
-        df_papers.to_csv(target_location, index=False)
-        logger.info(f"Saved papers to {target_location}")
+    #     logger.info(f"Downloading papers from {self.start_date} to {self.end_date}")
+    #     df_papers = self.download_paper_metadata_by_date()
+    #     df_papers.to_csv(target_location, index=False)
+    #     logger.info(f"Saved papers to {target_location}")
 
-        logger.info(df_papers.info())
-        logger.info(df_papers.head())
-        logger.info(df_papers.Date.min())
-        logger.info(df_papers.Date.max())
+    #     logger.info(df_papers.info())
+    #     logger.info(df_papers.head())
+    #     logger.info(df_papers.Date.min())
+    #     logger.info(df_papers.Date.max())
 
-        return df_papers
+    #     return df_papers
 
-    def bulk_download_to_db(self) -> None:
+    def save_metadata_to_ddb(self) -> None:
         """Download papers from arxiv and add them to a DynamoDB table."""
         # Download papers
-        df_papers = self.bulk_download()
+        df_papers = self.download_paper_metadata_by_date()
         logger.debug(df_papers.info())
 
         logger.info("inserting items into DynamoDB")
-        # Get the table
         table = dynamodb.Table(self.db_name)
         # Insert papers into the DynamoDB table
-        for index, row in df_papers.iterrows():
-            # Prepare the item to be inserted
+        for _, row in df_papers.iterrows():
             item = {
                 "EntryId": row["Id"],
                 "Title": row["Title"],
@@ -134,60 +147,6 @@ class ArxivDownloader:
                 "URL": row["URL"],
                 "Authors": row["Authors"],
             }
-
-            # Insert the item into the table
-            table.put_item(Item=item)
-
-    def daily_download(self) -> pd.DataFrame:
-        """Download papers published in the last day and save the results in a CSV file."""
-        # Calculate the start and end dates for the last day
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=1)
-        start_date = start_date.replace(tzinfo=timezone("UTC"))
-        end_date = end_date.replace(tzinfo=timezone("UTC"))
-
-        # Update the downloader's start and end dates to the last day
-        self.set_start_date(start_date.strftime("%Y-%m-%d"))
-        self.set_end_date(end_date.strftime("%Y-%m-%d"))
-
-        # Download papers for the last day
-        df_papers = self.download_papers_by_date()
-
-        logger.info(df_papers.info())
-        logger.info(df_papers.head())
-
-        # Prepare the filename with the current date
-        filename = f"data/{self.topic}_papers_{start_date.strftime('%Y-%m-%d')}.csv"
-
-        # Save the results to a CSV file
-        df_papers.to_csv(filename, index=False)
-        logger.info(f"Saved papers to {filename}")
-
-        return df_papers
-
-    def daily_download_to_db(self) -> None:
-        """Download papers published in the last 24 hours
-        and add them to a DynamoDB table."""
-        # Initialize the DynamoDB client
-        table = dynamodb.Table(self.db_name)
-
-        # Download papers for the last day
-        df_papers = self.daily_download()
-
-        # Check for duplicates and add new papers to the DynamoDB table
-        for index, row in df_papers.iterrows():
-            # Prepare the item to be inserted
-            item = {
-                "Title": row["Title"],
-                "Published": row["Date"].strftime(
-                    "%Y-%m-%dT%H:%M:%SZ"
-                ),  # Convert timestamp to ISO 8601 format
-                "EntryId": row["Id"],
-                "Summary": row["Summary"],
-                "URL": row["URL"],
-                "Authors": row["Authors"],
-            }
-
             # Check if the paper already exists in the table
             response = table.get_item(Key={"EntryId": item["EntryId"]})
             if "Item" not in response:
@@ -198,18 +157,33 @@ class ArxivDownloader:
                 logger.info(f"Paper already exists: {item['Title']}")
 
 
-if __name__ == "__main__":
-    # Perform a bulk download of all 2024 papers on LLM
-    topic = "LLM"
-    start_date = "2024-01-01"
-    end_date = "2024-03-23"
-    dynamodb_table = read_yaml_file("infra.yaml")
+def test_paper_download(args: TestPaperDownloadArgs) -> None:
+    """Test paper download"""
+
     downloader = ArxivDownloader(
-        topic=topic,
-        start_date=start_date,
-        end_date=end_date,
-        db_name=dynamodb_table,
-        max_results=5000,
+        topic=args.topic,
+        start_date=args.start_date,
+        end_date=args.end_date,
+        db_name=args.dynamodb_table,
+        max_results=args.max_results,
     )
-    downloader.bulk_download_to_db()
-    logger.info("Bulk download completed.")
+
+    # test scraping of metadata from Arxiv
+    # df_papers = downloader.download_paper_metadata_by_date()
+    # logger.info(df_papers.info())
+    # logger.info(df_papers.head())
+
+    # test insertion of metadata to dynamodb table
+    downloader.save_metadata_to_ddb()
+
+
+if __name__ == "__main__":
+    test_paper_download(
+        TestPaperDownloadArgs(
+            topic="LLM",
+            start_date="2024-03-23",
+            end_date="2024-03-26",
+            dynamodb_table="arxiv_papers_master_collection",
+            max_results=1_000,
+        )
+    )
