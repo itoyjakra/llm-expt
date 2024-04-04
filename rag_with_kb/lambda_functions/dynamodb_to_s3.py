@@ -16,34 +16,46 @@ def lambda_handler(event, context):
 
     table = dynamodb.Table(db_name)
 
-    # Scan the DynamoDB table
-    response = table.scan(Limit=100)
+    documents_scanned = 0
+    documents_saved = 0
+    last_evaluated_key = None
 
-    print(f"Found {len(response['Items'])} items in the DynamoDB table.")
-    print(f"Downloading PDFs to S3 bucket: {kb_bucket}")
+    while True:
+        # Scan the DynamoDB table with pagination
+        if last_evaluated_key:
+            response = table.scan(ExclusiveStartKey=last_evaluated_key)
+        else:
+            response = table.scan()
 
-    # Process each item in the table
-    for item in response["Items"]:
-        # Download the PDF
-        pdf_url = item["URL"]
-        paper_key = f"{pdf_url.split('/')[-1]}.pdf"
+        print(f"Found {len(response['Items'])} items in the DynamoDB table.")
+        print(f"Downloading PDFs to S3 bucket: {kb_bucket}")
 
-        # Check if the paper exists in the S3 bucket
-        try:
-            s3.head_object(Bucket=kb_bucket, Key=paper_key)
-            print(f"Paper {paper_key} already exists in the S3 bucket.")
-        except ClientError as e:
-            if e.response["Error"]["Code"] == "404":
-                # The paper does not exist in the S3 bucket, so save it
-                with urlopen(pdf_url) as response, open(
-                    f"/tmp/{paper_key}", "wb"
-                ) as out_file:
-                    data = response.read()
-                    out_file.write(data)
-                # Upload the PDF to S3
-                with open(f"/tmp/{paper_key}", "rb") as data:
-                    s3.put_object(Bucket=kb_bucket, Key=paper_key, Body=data)
-                print(f"Saved paper {paper_key} to the S3 bucket.")
-            else:
-                # Something else went wrong
-                raise
+        for item in response["Items"]:
+            documents_scanned += 1
+            # Download the PDF
+            pdf_url = item["URL"]
+            paper_key = f"{pdf_url.split('/')[-1]}.pdf"
+
+            try:
+                s3.head_object(Bucket=kb_bucket, Key=paper_key)
+                print(f"Paper {paper_key} already exists in the S3 bucket.")
+            except ClientError as e:
+                if e.response["Error"]["Code"] == "404":
+                    with urlopen(pdf_url) as response:
+                        s3.put_object(
+                            Bucket=kb_bucket, Key=paper_key, Body=response.read()
+                        )
+                    print(f"Saved paper {paper_key} to the S3 bucket.")
+                    documents_saved += 1
+                else:
+                    # Something else went wrong
+                    raise
+
+        # Check if there are more items to scan
+        if "LastEvaluatedKey" in response:
+            last_evaluated_key = response["LastEvaluatedKey"]
+        else:
+            break
+
+    print(f"Total documents saved to S3: {documents_saved}")
+    print(f"Total documents scanned from DynamoDB : {documents_scanned}")

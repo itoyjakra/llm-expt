@@ -88,6 +88,11 @@ data "archive_file" "create_dist_pkg" {
 #   filename         = data.archive_file.create_dist_pkg.output_path
 # }
 
+# data "aws_lambda_layer_version" "aws_pandas_layer" {
+#   layer_name = "arn:aws:lambda:us-east-1:336392948345:layer:AWSSDKPandas-Python311:10"
+#   version    = 10
+# }
+
 resource "aws_lambda_function" "paper_scraper_lambda" {
   function_name = var.lambda_scraper_function_name
   description   = "Scrapes arxiv papers between two dates"
@@ -99,6 +104,10 @@ resource "aws_lambda_function" "paper_scraper_lambda" {
   filename         = "my_custom_lambda/function.zip"
   source_code_hash = filebase64sha256("my_custom_lambda/function.zip")
 
+  layers = [
+    "arn:aws:lambda:us-east-1:336392948345:layer:AWSSDKPandas-Python311:10"
+  ]
+  # aws_lambda_layer_version.aws_pandas_layer.arn
 }
 #TODO need to attach the correct set of policies
 resource "aws_lambda_function" "refresh_knowledge_base_lambda" {
@@ -164,4 +173,25 @@ resource "aws_cloudwatch_event_target" "step_function_target" {
   target_id = "StepFunctionTarget"
   arn       = aws_sfn_state_machine.arxiv_paper_workflow.arn
   role_arn  = aws_iam_role.step_function_execution_role.arn
+}
+
+resource "aws_iam_policy" "invoke_step_function_policy" {
+  name        = "InvokeStepFunctionPolicy"
+  description = "Policy to allow invoking a Step Functions state machine"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action   = "states:StartExecution"
+        Effect   = "Allow"
+        Resource = aws_sfn_state_machine.arxiv_paper_workflow.arn
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "attach_invoke_step_function_policy" {
+  role       = aws_iam_role.step_function_execution_role.name
+  policy_arn = aws_iam_policy.invoke_step_function_policy.arn
 }

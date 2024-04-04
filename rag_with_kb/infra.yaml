@@ -1,4 +1,5 @@
 # parameters used in initial setup of Bedrock knowledge base
+arxiv_paper_topic: "LLM"
 project_name: "rag-with-llm-research"
 project_suffix: "06"
 master_collection_dynamodb: "arxiv_papers_master_collection"
