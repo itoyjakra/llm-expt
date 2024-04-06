@@ -19,6 +19,8 @@ def lambda_handler(event, context):
     documents_scanned = 0
     documents_saved = 0
     last_evaluated_key = None
+    paper_pdf_names = []
+    paper_pdf_urls = []
 
     while True:
         # Scan the DynamoDB table with pagination
@@ -35,21 +37,8 @@ def lambda_handler(event, context):
             # Download the PDF
             pdf_url = item["URL"]
             paper_key = f"{pdf_url.split('/')[-1]}.pdf"
-
-            try:
-                s3.head_object(Bucket=kb_bucket, Key=paper_key)
-                print(f"Paper {paper_key} already exists in the S3 bucket.")
-            except ClientError as e:
-                if e.response["Error"]["Code"] == "404":
-                    with urlopen(pdf_url) as response:
-                        s3.put_object(
-                            Bucket=kb_bucket, Key=paper_key, Body=response.read()
-                        )
-                    print(f"Saved paper {paper_key} to the S3 bucket.")
-                    documents_saved += 1
-                else:
-                    # Something else went wrong
-                    raise
+            paper_pdf_names.append(paper_key)
+            paper_pdf_urls.append(pdf_url)
 
         # Check if there are more items to scan
         if "LastEvaluatedKey" in response:
@@ -57,5 +46,24 @@ def lambda_handler(event, context):
         else:
             break
 
-    print(f"Total documents saved to S3: {documents_saved}")
     print(f"Total documents scanned from DynamoDB : {documents_scanned}")
+    print(f"Number of papaer pdf names = {len(paper_pdf_names)}")
+    print(f"Number of paper pdf urls = {len(paper_pdf_urls)}")
+
+    # now download the pdfs and upload to s3
+    for pdf_url in paper_pdf_urls:
+        paper_key = f"{pdf_url.split('/')[-1]}.pdf"
+        try:
+            s3.head_object(Bucket=kb_bucket, Key=paper_key)
+            print(f"Paper {paper_key} already exists in the S3 bucket.")
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "404":
+                with urlopen(pdf_url) as response:
+                    s3.put_object(Bucket=kb_bucket, Key=paper_key, Body=response.read())
+                print(f"Saved paper {paper_key} to the S3 bucket.")
+                documents_saved += 1
+            else:
+                # Something else went wrong
+                raise
+
+    print(f"Total documents saved to S3: {documents_saved}")

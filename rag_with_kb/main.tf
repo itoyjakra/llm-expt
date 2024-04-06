@@ -42,6 +42,7 @@ resource "aws_lambda_function" "download_pdfs_to_s3_lambda" {
   handler       = "dynamodb_to_s3.lambda_handler"
   runtime       = var.runtime
   role          = aws_iam_role.lambda_exec.arn
+  memory_size   = 10240
 
   source_code_hash = filebase64sha256(data.archive_file.ddb_to_s3_lambda_zip.output_path)
 
@@ -75,23 +76,6 @@ data "archive_file" "create_dist_pkg" {
   type        = "zip"
 }
 
-# resource "aws_lambda_function" "paper_scraper_lambda" {
-#   function_name = var.lambda_scraper_function_name
-#   description   = "Scrapes arxiv papers between two dates"
-#   handler       = "lambda_handler"
-#   runtime       = var.runtime
-#   role          = aws_iam_role.lambda_exec.arn
-#   timeout       = var.lambda_timeout
-
-#   depends_on       = [null_resource.install_python_dependencies]
-#   source_code_hash = data.archive_file.create_dist_pkg.output_base64sha256
-#   filename         = data.archive_file.create_dist_pkg.output_path
-# }
-
-# data "aws_lambda_layer_version" "aws_pandas_layer" {
-#   layer_name = "arn:aws:lambda:us-east-1:336392948345:layer:AWSSDKPandas-Python311:10"
-#   version    = 10
-# }
 
 resource "aws_lambda_function" "paper_scraper_lambda" {
   function_name = var.lambda_scraper_function_name
@@ -143,15 +127,45 @@ resource "aws_sfn_state_machine" "arxiv_paper_workflow" {
         Resource = aws_lambda_function.paper_scraper_lambda.arn
         Next     = "DownloadPDFsToS3"
         Parameters = {
-          "topic"       = var.topic
-          "db_name"     = var.db_name
-          "max_results" = var.max_results
+          "topic.$"       = "$.topic"
+          "db_name.$"     = "$.db_name"
+          "max_results.$" = "$.max_results"
+          "start_date.$"  = "$.start_date"
+          "end_date.$"    = "$.end_date"
         }
+        Retry = [
+          {
+            ErrorEquals     = ["States.ALL"]
+            IntervalSeconds = 2
+            MaxAttempts     = 5
+            BackoffRate     = 2.0
+          }
+        ]
+        Catch = [
+          {
+            ErrorEquals = ["States.ALL"]
+            Next        = "PaperScraper"
+          }
+        ]
       }
       DownloadPDFsToS3 = {
         Type     = "Task"
         Resource = aws_lambda_function.download_pdfs_to_s3_lambda.arn
         Next     = "RefreshKnowledgeBase"
+        Retry = [
+          {
+            ErrorEquals     = ["States.Timeout", "Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException"]
+            IntervalSeconds = 2
+            MaxAttempts     = 6
+            BackoffRate     = 2.0
+          }
+        ]
+        Catch = [
+          {
+            ErrorEquals = ["States.ALL"]
+            Next        = "DownloadPDFsToS3"
+          }
+        ]
       }
       RefreshKnowledgeBase = {
         Type     = "Task"

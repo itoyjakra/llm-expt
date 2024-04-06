@@ -4,3 +4,5 @@ __pycache__/
 *.backup
 *.bak
 *.zip
+lambda_dist_pkg/
+my_custom_lambda/my_lambda_env/
