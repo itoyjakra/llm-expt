@@ -1,0 +1,9 @@
+tiktoken
+langchain_community
+tiktoken
+langchain-mistralai
+langchainhub
+chromadb
+langchain
+langgraph
+loguru
