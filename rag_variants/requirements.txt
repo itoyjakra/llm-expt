@@ -1,9 +1,11 @@
 tiktoken
 langchain_community
-tiktoken
 langchain-mistralai
 langchainhub
 chromadb
 langchain
 langgraph
 loguru
+tavily-python
+bs4
+huggingface_hub

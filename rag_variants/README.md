@@ -6,4 +6,4 @@
 - [Self RAG](https://arxiv.org/abs/2310.11511)
 
 ## Code
-Hevily influenced by [Mistral Cookbook](https://github.com/mistralai/cookbook/tree/main/third_party/langchain)
+Heavily influenced by [Mistral Cookbook](https://github.com/mistralai/cookbook/tree/main/third_party/langchain)

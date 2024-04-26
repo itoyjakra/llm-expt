@@ -3,6 +3,7 @@
 from pprint import pprint
 
 from agents import decide_to_generate, generate, grade_documents, retrieve, web_search
+from dotenv import load_dotenv
 from graph_state import GraphState
 from langgraph.graph import END, StateGraph
 
@@ -36,9 +37,18 @@ def create_graph_rag_variant():
 
 def main():
     """Entry point."""
+    load_dotenv()
     app = create_graph_rag_variant()
 
-    inputs = {"question": "What are the types of agent memory?"}
+    # inputs = {"question": "What are the types of agent memory?"}
+    # inputs = {"question": "What is the capital of Suriname?"}
+    # inputs = {"question": "What is chain of thought?"}
+    # inputs = {"question": "What is 1-bit LLM?"}
+    # inputs = {"question": "Give me a summary of the AlphaCodium work"}
+    inputs = {
+        "question": "How does the concept of adversarial attack work in the LLM space?"
+    }
+
     for output in app.stream(inputs):
         for key, value in output.items():
             pprint(f"Finished running: {key}: ")
