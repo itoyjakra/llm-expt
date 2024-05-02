@@ -4,8 +4,9 @@ from grader_prompts import (
     get_document_grader_prompt,
     get_hallucination_grader_prompt,
     get_relevance_grader_prompt,
+    get_router_prompt,
 )
-from graders import GradeAnswer, GradeDocuments, GradeHallucinations
+from graders import GradeAnswer, GradeDocuments, GradeHallucinations, RouteQuery
 from langchain.schema import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -41,6 +42,24 @@ def get_rag_chain():
     return prompt | get_mistral_llm() | StrOutputParser()
 
 
+def get_query_router():
+    """Get a query router."""
+    # LLM with function call
+    llm = get_mistral_llm()
+    structured_llm_grader = llm.with_structured_output(RouteQuery)
+
+    # prompt
+    system = get_router_prompt()
+
+    query_router_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system),
+            ("human", "{question}"),
+        ]
+    )
+    return query_router_prompt | structured_llm_grader
+
+
 def get_document_grader():
     """Get a retrieval grader."""
 
@@ -50,9 +69,6 @@ def get_document_grader():
 
     # prompt
     system = get_document_grader_prompt()
-    # """You are a grader assessing relevance of a retrieved document to a user question. \n
-    # If the document contains keyword(s) or semantic meaning related to the question, grade it as relevant. \n
-    # Give a binary score 'yes' or 'no' score to indicate whether the document is relevant to the question."""
 
     grade_prompt = ChatPromptTemplate.from_messages(
         [
@@ -107,6 +123,22 @@ def get_relevance_grader():
     )
 
     return relevance_prompt | structured_llm_grader
+
+
+def route_query(state: dict) -> str:
+    """Route the query to either web search or RAG."""
+    logger.info("=== Route Query ===")
+
+    question = state["question"]
+    query_router = get_query_router()
+    answer_source = query_router.invoke({"question": question})
+
+    if answer_source.data_source.value == "vectorstore":
+        logger.info("=== Route query to RAG ===")
+        return "vectorstore"
+    elif answer_source.data_source.value == "websearch":
+        logger.info("=== Route query to Web Search ===")
+        return "websearch"
 
 
 def retrieve(state: dict) -> dict:
@@ -235,7 +267,10 @@ def check_for_hallucinations_and_relevance(state: dict) -> str:
 
 def test_agents():
     """Test specific agents."""
-    pass
+    question = "Who was the father of Kublai Khan?"
+    query_router = get_query_router()
+    answer = query_router.invoke({"question": question})
+    print(answer)
 
 
 if __name__ == "__main__":

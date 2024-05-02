@@ -12,6 +12,21 @@ def get_document_grader_prompt():
     Give a binary score 'yes' or 'no' score to indicate whether the document is relevant to the question."""
 
 
-def get_relevance_grader_prompt():
-    return """You are a grader assessing whether an answer addresses / resolves a question \n 
-     Give a binary score 'yes' or 'no'. Yes' means that the answer resolves the question."""
+def get_relevance_grader_prompt() -> str:
+    """
+    Returns a string prompt for a grader assessing whether
+    an answer addresses or resolves a question.
+    """
+    return """You are a grader assessing whether an answer addresses / resolves a question.\n
+    Give a binary score 'yes' or 'no'. 'Yes' means that the answer resolves the question."""
+
+
+def get_router_prompt() -> str:
+    """
+    Returns a string that provides instructions to an expert
+    on how to route a user question to either a vectorstore
+    or a web search, depending on the topic of the question.
+    """
+    return """You are an expert at routing a user question to a vectorstore or web search.
+    The vectorstore contains documents related to agents, prompt engineering, and adversarial attacks.
+    Use the vectorstore for questions on these topics. For all else, use web-search."""

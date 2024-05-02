@@ -8,6 +8,7 @@ from agents import (
     generate,
     grade_documents,
     retrieve,
+    route_query,
     web_search,
 )
 from dotenv import load_dotenv
@@ -20,20 +21,28 @@ def create_graph_rag_variant():
     workflow = StateGraph(GraphState)
 
     # Define nodes
+    workflow.add_node("websearch", web_search)
     workflow.add_node("retrieve", retrieve)
     workflow.add_node("grade_documents", grade_documents)
     workflow.add_node("generate", generate)
-    workflow.add_node("websearch", web_search)
 
     # Build the graph
-    workflow.set_entry_point("retrieve")
+    workflow.set_conditional_entry_point(
+        route_query,
+        {
+            "vectorstore": "retrieve",
+            "websearch": "websearch",
+        },
+    )
+    workflow.add_edge("websearch", "generate")
+    # workflow.set_entry_point("retrieve")
     workflow.add_edge("retrieve", "grade_documents")
     workflow.add_conditional_edges(
         "grade_documents",
         decide_to_generate,
         {"websearch": "websearch", "generate": "generate"},
     )
-    workflow.add_edge("websearch", "generate")
+    # workflow.add_edge("websearch", "generate")
     workflow.add_conditional_edges(
         "generate",
         check_for_hallucinations_and_relevance,
@@ -56,13 +65,14 @@ def main():
 
     # inputs = {"question": "What are the types of agent memory?"}
     # inputs = {"question": "What is the capital of Suriname?"}
-    inputs = {"question": "What is Long Short Term Memory?"}
+    # inputs = {"question": "What is Long Short Term Memory?"}
     # inputs = {"question": "What is chain of thought?"}
     # inputs = {"question": "What is 1-bit LLM?"}
     # inputs = {"question": "Give me a summary of the AlphaCodium work"}
-    inputs = {
-        "question": "How does the concept of adversarial attack work in the LLM space?"
-    }
+    # inputs = {
+    #     "question": "How does the concept of adversarial attack work in the LLM space?"
+    # }
+    inputs = {"question": "Who was the father of Kublai Khan?"}
 
     for output in app.stream(inputs):
         for key, value in output.items():
