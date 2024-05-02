@@ -1,6 +1,11 @@
 """Collection of agents for the RAG variants."""
 
-from grade_documents import GradeDocuments
+from grader_prompts import (
+    get_document_grader_prompt,
+    get_hallucination_grader_prompt,
+    get_relevance_grader_prompt,
+)
+from graders import GradeAnswer, GradeDocuments, GradeHallucinations
 from langchain.schema import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -25,16 +30,6 @@ vector_store = create_vector_store_from_web_docs(urls, text_splitter)
 retriever = get_retriever(vector_store)
 
 
-def retrieve(state: dict) -> dict:
-    """Retrieve documents from a vectordb"""
-    logger.info("=== Retrieve ===")
-
-    question = state["question"]
-    documents = retriever.invoke(question)
-
-    return {"documents": documents, "question": question}
-
-
 def get_mistral_llm(model_name: str = "mistral-large-latest", temp: float = 0.0):
     """Get the LLM."""
     return ChatMistralAI(model=model_name, temperature=temp)
@@ -46,7 +41,7 @@ def get_rag_chain():
     return prompt | get_mistral_llm() | StrOutputParser()
 
 
-def get_retrieval_grader():
+def get_document_grader():
     """Get a retrieval grader."""
 
     # LLM with function call
@@ -54,9 +49,10 @@ def get_retrieval_grader():
     structured_llm_grader = llm.with_structured_output(GradeDocuments)
 
     # prompt
-    system = """You are a grader assessing relevance of a retrieved document to a user question. \n 
-    If the document contains keyword(s) or semantic meaning related to the question, grade it as relevant. \n
-    Give a binary score 'yes' or 'no' score to indicate whether the document is relevant to the question."""
+    system = get_document_grader_prompt()
+    # """You are a grader assessing relevance of a retrieved document to a user question. \n
+    # If the document contains keyword(s) or semantic meaning related to the question, grade it as relevant. \n
+    # Give a binary score 'yes' or 'no' score to indicate whether the document is relevant to the question."""
 
     grade_prompt = ChatPromptTemplate.from_messages(
         [
@@ -68,6 +64,59 @@ def get_retrieval_grader():
         ]
     )
     return grade_prompt | structured_llm_grader
+
+
+def get_hallucination_grader():
+    """Get a hallucination grader."""
+    # LLM with function call
+    llm = get_mistral_llm()
+    structured_llm_grader = llm.with_structured_output(GradeHallucinations)
+
+    # prompt
+    system = get_hallucination_grader_prompt()
+
+    hallucination_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system),
+            (
+                "human",
+                "Set of facts: \n\n {documents} \n\n LLM generation: {generation}",
+            ),
+        ]
+    )
+    return hallucination_prompt | structured_llm_grader
+
+
+def get_relevance_grader():
+    """Get a grader for relevance of answers against questions."""
+    # LLM with function call
+    llm = get_mistral_llm()
+    structured_llm_grader = llm.with_structured_output(GradeAnswer)
+
+    # prompt
+    system = get_relevance_grader_prompt()
+
+    relevance_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system),
+            (
+                "human",
+                "User question: \n\n {question} \n\n LLM generation: {generation}",
+            ),
+        ]
+    )
+
+    return relevance_prompt | structured_llm_grader
+
+
+def retrieve(state: dict) -> dict:
+    """Retrieve documents from a vectordb"""
+    logger.info("=== Retrieve ===")
+
+    question = state["question"]
+    documents = retriever.invoke(question)
+
+    return {"documents": documents, "question": question}
 
 
 def generate(state: dict) -> dict:
@@ -90,13 +139,13 @@ def grade_documents(state: dict) -> dict:
     documents = state["documents"]
     question = state["question"]
 
-    retrieval_grader = get_retrieval_grader()
+    document_grader = get_document_grader()
 
     # score each doc
     filtered_docs = []
     web_search = "No"
     for doc in documents:
-        score = retrieval_grader.invoke(
+        score = document_grader.invoke(
             {"question": question, "document": doc.page_content}
         )
         grade = score.binary_score
@@ -149,9 +198,45 @@ def decide_to_generate(state: dict) -> str:
         return "generate"
 
 
-def main():
-    """Entry point."""
+def check_for_hallucinations_and_relevance(state: dict) -> str:
+    """Check for hallucinations and relevance."""
+    logger.info("=== Check for Hallucinations ===")
+
+    question = state["question"]
+    generation = state["generation"]
+    documents = state["documents"]
+
+    hallucination_grader = get_hallucination_grader()
+    relevance_grader = get_relevance_grader()
+
+    hallucination_score = hallucination_grader.invoke(
+        {"documents": documents, "generation": generation}
+    )
+    grade = hallucination_score.binary_score
+
+    if grade.lower() == "yes":  # Answer is grounded
+        logger.info("=== DECISION: Answer is grounded IN DOCUMENTS ===")
+        logger.info("=== GRADE ANSWER FOR RELEVANCE TO QUESTION ===")
+        score = relevance_grader.invoke(
+            {"question": question, "generation": generation}
+        )
+        grade = score.binary_score
+
+        if grade.lower() == "yes":
+            logger.info("=== DECISION: Answer is relevant to the question ===")
+            return "useful"
+        else:
+            logger.info("=== DECISION: Answer is not relevant to the question ===")
+            return "not useful"
+    else:
+        logger.info("=== DECISION: Answer is not grounded in documents, Re-try ===")
+        return "not supported"
+
+
+def test_agents():
+    """Test specific agents."""
+    pass
 
 
 if __name__ == "__main__":
-    main()
+    test_agents()

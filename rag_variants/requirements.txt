@@ -1,3 +1,4 @@
+python-dotenv
 tiktoken
 langchain_community
 langchain-mistralai
@@ -9,3 +10,6 @@ loguru
 tavily-python
 bs4
 huggingface_hub
+grandalf
+matplotlib
+pexpect
