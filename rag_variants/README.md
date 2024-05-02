@@ -7,3 +7,7 @@
 
 ## Code
 Heavily influenced by [Mistral Cookbook](https://github.com/mistralai/cookbook/tree/main/third_party/langchain)
+
+## Workflow
+![Improved RAG](images/rag_variants.png)
+
