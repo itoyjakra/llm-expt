@@ -11,3 +11,9 @@ Heavily influenced by [Mistral Cookbook](https://github.com/mistralai/cookbook/t
 ## Workflow
 ![Improved RAG](images/rag_variants.png)
 
+
+## Environment Setup
+
+- Make a copy of the `.env.template` file and rename it to `.env`.
+
+- Open the `.env` file and fill in the details for each placeholder.
