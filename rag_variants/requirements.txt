@@ -13,3 +13,6 @@ huggingface_hub
 grandalf
 matplotlib
 pexpect
+exa_py
+crewai
+crewai[tools]
