@@ -105,13 +105,19 @@ class ConciergeCrew:
         gather_info = GatherInfo(
             agent=local_expert,
             context=[weather_info, np_activity_info, city_activity_info],
-            human_input=True,
+            human_input=False,
         )
         # gather_info.description += (
         #     f"Focus on {self.cities} and {self.places} when gathering your info."
         # )
 
         plan = Plan(config=self.input_config, context=[gather_info], agent=planner)
+        plan.description += (
+            f"While creating the plan, pay special attention to the following details. "
+            f"The trip starts at {self.arrival} and ends at {self.departure}. "
+            f"The travelers will stay at {self.cities}. "
+            f"The trip spans {self.date_range}. "
+        )
 
         crew = Crew(
             agents=[

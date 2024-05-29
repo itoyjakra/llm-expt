@@ -16,7 +16,7 @@ class LocalExpert(Agent):
         "A knowledgeable local guide with extensive information"
         "about the area, nearby attractions and customs."
     )
-    verbose: bool = True
+    verbose: bool = False
 
 
 class WeatherExpert(Agent):
@@ -28,7 +28,7 @@ class WeatherExpert(Agent):
         "that publish more reliable forecasts specific to the area."
     )
     tools: List[Any] = [SearchTools, BrowserTools]
-    verbose: bool = True
+    verbose: bool = False
 
 
 class NationalParkExpert(Agent):
@@ -42,7 +42,7 @@ class NationalParkExpert(Agent):
         "visit based on the desired activities and how to beat the crowd."
     )
     tools: List[Any] = [SearchTools, BrowserTools]
-    verbose: bool = True
+    verbose: bool = False
 
 
 class CityExpert(Agent):
@@ -57,7 +57,7 @@ class CityExpert(Agent):
         "visit based on the desired activities and how to beat the crowd."
     )
     tools: List[Any] = [SearchTools, BrowserTools]
-    verbose: bool = True
+    verbose: bool = False
 
 
 class ActivitiesGuide(Agent):
@@ -70,7 +70,7 @@ class ActivitiesGuide(Agent):
         "that are appropriate for the members of the team."
     )
     tools: List[Any] = [SearchTools, BrowserTools]
-    verbose: bool = True
+    verbose: bool = False
 
 
 class Planner(Agent):
@@ -82,5 +82,5 @@ class Planner(Agent):
     backstory: str = (
         "Specialist in travel planning and logistics with decades of experience"
     )
-    tools: List[Any] = [SearchTools, BrowserTools, CalculatorTools]
+    tools: List[Any] = [CalculatorTools]
     verbose: bool = True

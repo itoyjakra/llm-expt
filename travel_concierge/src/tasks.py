@@ -41,7 +41,9 @@ class Plan(Task):
         "anticipated weather conditions, recommended clothing and "
         "items to pack, and a detailed budget, ensuring THE BEST "
         "TRIP EVER, Be specific and give it a reason why you picked "
-        "up each place, what make them special!"
+        "up each place, what make them special! Add distances "
+        "time estimates, origin and destination for each driving "
+        "segment and make sure you have enough time to cover the itinerary."
     )
 
 
@@ -71,4 +73,5 @@ class GetActivitiesOutdoors(Task):
         "A list of activities to do during the trip, "
         "including the name, type, duration, required "
         "fitness level, considering the weather during the activity."
+        "Hiking in the National and State parks is a preferred activity."
     )
