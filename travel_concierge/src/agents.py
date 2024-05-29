@@ -14,9 +14,8 @@ class LocalExpert(Agent):
     goal: str = "Provide the best insights about the area."
     backstory: str = (
         "A knowledgeable local guide with extensive information"
-        "about the city, its attractions and customs."
+        "about the area, nearby attractions and customs."
     )
-    # tools: Optional[List[Any]] = [SearchTools, BrowserTools]
     verbose: bool = True
 
 

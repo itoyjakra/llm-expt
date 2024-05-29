@@ -28,7 +28,7 @@ class GatherInfo(Task):
 class Plan(Task):
 
     description: str = (
-        "Expand this guide into a a full travel "
+        "Expand this guide into a full travel "
         "itinerary with detailed per-day plans, including "
         "weather forecasts, places to eat, packing suggestions, "
         "and a rough budget breakdown. "
@@ -42,4 +42,33 @@ class Plan(Task):
         "items to pack, and a detailed budget, ensuring THE BEST "
         "TRIP EVER, Be specific and give it a reason why you picked "
         "up each place, what make them special!"
+    )
+
+
+class GetWeatherInfo(Task):
+    description: str = (
+        "Provide a detailed weather forecast for the area "
+        "during the days of the trip."
+    )
+    expected_output: str = (
+        "A detailed weather forecast, "
+        "including the date, temperature, precipitation, "
+        "and other relevant information."
+    )
+
+
+class GetActivities(Task):
+    description: str = "Provide a list of activities to do during the trip."
+    expected_output: str = (
+        "A list of activities to do during the trip, "
+        "including the name, type, and duration."
+    )
+
+
+class GetActivitiesOutdoors(Task):
+    description: str = "Provide a list of outdoors activities to do during the trip."
+    expected_output: str = (
+        "A list of activities to do during the trip, "
+        "including the name, type, duration, required "
+        "fitness level, considering the weather during the activity."
     )

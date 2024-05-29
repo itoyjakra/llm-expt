@@ -11,7 +11,7 @@ from agents import (
 from crewai_tools import ScrapeWebsiteTool, SerperDevTool
 from dotenv import load_dotenv
 from inputs import UserInputs
-from tasks import GatherInfo, Plan
+from tasks import GatherInfo, GetActivities, GetActivitiesOutdoors, GetWeatherInfo, Plan
 from tools import calculator
 from tools.calculator import CalculatorTools
 from utils.llms import LLMConfig
@@ -44,6 +44,16 @@ class ConciergeCrew:
             "places": self.places,
         }
 
+    @property
+    def input_story(self):
+        return (
+            "We are a family of three going onto a trip from "
+            f"during {self.date_range}. We shall start the trip "
+            f"from {self.arrival} and end the trip at {self.departure}. "
+            f"We shall stay at {self.cities} during this time and "
+            f"visit {self.places}."
+        )
+
     def run(self):
 
         search_tool = SerperDevTool()
@@ -55,25 +65,73 @@ class ConciergeCrew:
         planner = Planner(
             llm=self.llm_model, tools=[scrape_tool, search_tool, calculator_tool]
         )
+        weather_expert = WeatherExpert(
+            llm=self.llm_model, tools=[search_tool, scrape_tool]
+        )
 
-        # tasks
-        gather_info = GatherInfo(config=self.input_config, agent=local_expert)
-        plan = Plan(config=self.input_config, agent=planner)
+        np_expert = NationalParkExpert(
+            llm=self.llm_model, tools=[search_tool, scrape_tool]
+        )
+
+        city_expert = CityExpert(llm=self.llm_model, tools=[search_tool, scrape_tool])
+
+        # -------- tasks -----------
+
+        # Weather Information
+        weather_info = GetWeatherInfo(agent=weather_expert, async_execution=True)
+        weather_info.description += (
+            f"Focus on {self.cities} and {self.places} "
+            f"during {self.date_range} when gathering your info."
+        )
+
+        # NP Activities Information
+        np_activity_info = GetActivitiesOutdoors(
+            agent=np_expert, context=[weather_info], async_execution=True
+        )
+        np_activity_info.description += (
+            f"Focus on {self.places} "
+            f"during {self.date_range} when gathering your info."
+        )
+
+        # City Activities Information
+        city_activity_info = GetActivities(
+            agent=city_expert, context=[weather_info], async_execution=True
+        )
+        city_activity_info.description += (
+            f"Focus on {self.cities} "
+            f"during {self.date_range} when gathering your info."
+        )
+
+        gather_info = GatherInfo(
+            agent=local_expert,
+            context=[weather_info, np_activity_info, city_activity_info],
+            human_input=True,
+        )
+        # gather_info.description += (
+        #     f"Focus on {self.cities} and {self.places} when gathering your info."
+        # )
+
+        plan = Plan(config=self.input_config, context=[gather_info], agent=planner)
 
         crew = Crew(
             agents=[
+                weather_expert,
+                np_expert,
+                city_expert,
                 local_expert,
                 planner,
-                # CityExpert(),
-                # ActivitiesGuide(),
-                # NationalParkExpert(),
-                # WeatherExpert(),
             ],
-            tasks=[gather_info, plan],
+            tasks=[
+                weather_info,
+                np_activity_info,
+                city_activity_info,
+                gather_info,
+                plan,
+            ],
             verbose=True,
         )
 
-        return crew.kickoff()
+        return crew.kickoff(inputs={"story": self.input_story})
 
 
 if __name__ == "__main__":
