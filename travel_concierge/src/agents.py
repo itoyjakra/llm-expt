@@ -1,4 +1,10 @@
+from typing import Any, List, Optional
+
+from crewai_tools import ScrapeWebsiteTool, SerperDevTool
 from pydantic import Field
+from tools.browser_tools import BrowserTools
+from tools.calculator import CalculatorTools
+from tools.search import SearchTools
 
 from crewai import Agent
 
@@ -10,6 +16,7 @@ class LocalExpert(Agent):
         "A knowledgeable local guide with extensive information"
         "about the city, its attractions and customs."
     )
+    # tools: Optional[List[Any]] = [SearchTools, BrowserTools]
     verbose: bool = True
 
 
@@ -21,19 +28,21 @@ class WeatherExpert(Agent):
         "have access to the local weather stations and local newspapers "
         "that publish more reliable forecasts specific to the area."
     )
+    tools: List[Any] = [SearchTools, BrowserTools]
     verbose: bool = True
 
 
 class NationalParkExpert(Agent):
     role: str = "Expert on US National Parks."
     goal: str = (
-        "Provide the most up to date and reliable insight about US Nation Parks."
+        "Provide the most up to date and reliable insight about US National Parks."
     )
     backstory: str = (
         "You are an outdoor person who is passionate about the US National Parks. "
         "You follow the activities available in the National Park, best season to "
         "visit based on the desired activities and how to beat the crowd."
     )
+    tools: List[Any] = [SearchTools, BrowserTools]
     verbose: bool = True
 
 
@@ -48,6 +57,7 @@ class CityExpert(Agent):
         "You follow the activities available in the city, best season to "
         "visit based on the desired activities and how to beat the crowd."
     )
+    tools: List[Any] = [SearchTools, BrowserTools]
     verbose: bool = True
 
 
@@ -60,4 +70,18 @@ class ActivitiesGuide(Agent):
         "comfortable with both indoor and outdoor activities "
         "that are appropriate for the members of the team."
     )
+    tools: List[Any] = [SearchTools, BrowserTools]
+    verbose: bool = True
+
+
+class Planner(Agent):
+    role: str = "Amazing Travel Concierge."
+    goal: str = (
+        "Create the most amazing travel itineraries with "
+        "budget and packing suggestions for the city"
+    )
+    backstory: str = (
+        "Specialist in travel planning and logistics with decades of experience"
+    )
+    tools: List[Any] = [SearchTools, BrowserTools, CalculatorTools]
     verbose: bool = True

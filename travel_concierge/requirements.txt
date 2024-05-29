@@ -1,0 +1,6 @@
+pydantic
+requests
+langchain
+unstructured
+crewai
+crewai-tools
