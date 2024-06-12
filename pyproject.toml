@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "llm-expt"
+version = "0.1.0"
+description = "My experiments with LLM"
+authors = ["Arkajyoti Misra <arkajyoti@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.11,<=3.13"
+python-dotenv = "^1.0.1"
+graphviz = "^0.20.3"
+pygraphviz = "^1.13"
+tavily-python = "^0.3.3"
+langchain = "^0.2.3"
+langgraph = "^0.0.66"
+langchain-community = "^0.2.4"
+langsmith = "^0.1.77"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
