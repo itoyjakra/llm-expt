@@ -142,7 +142,8 @@ class ConciergeCrew:
 
 if __name__ == "__main__":
     load_dotenv()
-    llm_config = LLMConfig(platform="openai", model="gpt-4o", temperature=0.7)
+    # llm_config = LLMConfig(platform="openai", model="gpt-4o", temperature=0.7)
+    llm_config = LLMConfig(platform="ollama", model="llama3", temperature=0.7)
     llm_model = llm_config.get_llm_model()
 
     # capture the user inputs

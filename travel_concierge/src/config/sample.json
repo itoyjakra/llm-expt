@@ -1,0 +1,16 @@
+{
+    "item1": {
+        "role": <string>,
+        "goal": <string>,
+        "verbose": <string>,
+        "backstory": <string>
+    },
+    "item2": {
+        "role": <string>,
+        "goal": <string>,
+        "verbose": <string>,
+        "backstory": <string>
+    },
+    "item3": {...
+    }
+}

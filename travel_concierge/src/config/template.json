@@ -1,0 +1,15 @@
+{
+    "item1": {
+        "role": "single or multi line string",
+        "goal": "single or multi line string",
+        "verbose": "single or multi line string",
+        "backstory": "single or multi line string",
+    },
+    "item2": {
+        "role": "single or multi line string",
+        "goal": "single or multi line string",
+        "verbose": "single or multi line string",
+        "backstory": "single or multi line string",
+    },
+    "item3": {}
+}
